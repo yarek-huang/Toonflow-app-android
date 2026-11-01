@@ -726,12 +726,21 @@ public class mobileActivity extends Activity {
         try { readerThread.join(200); } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
         String output;
         synchronized (outputTail) { output = outputTail.toString().trim(); }
-        showError("Bun 已退出，退出码：" + exitCode + (output.isEmpty() ? "。请通过 Logcat 查看 ToonflowMobile 日志。" : "\n\n" + output), null);
+        showError("Bun 已退出，退出码：" + exitCode + describeExitSignal(exitCode)
+          + (output.isEmpty() ? "。请通过 Logcat 查看 ToonflowMobile 日志。" : "\n\n" + output), null);
       }
     } catch (Exception error) {
       if (!stopping) showError("无法启动本地 Bun 服务：" + error.getMessage(), error);
       stopBun();
     }
+  }
+
+  // ACT: 退出码 >= 128 表示被致命信号终止；SIGSYS(31) 来自 Android zygote 的 seccomp 策略，tombstone 会记录被拦截的系统调用号。
+  private String describeExitSignal(int exitCode) {
+    int signal = exitCode - 128;
+    if (signal <= 0) return "";
+    if (signal == 31) return "（SIGSYS：Bun 调用了系统 seccomp 安全策略禁止的系统调用，被内核终止。请在 Logcat 过滤 Fatal signal 31，从 tombstone 的 si_syscall 确认系统调用号，并升级 Toonflow 或 Bun。）";
+    return "（信号 " + signal + "）";
   }
 
   private File preparePayload() throws IOException {
